@@ -200,6 +200,35 @@
     }
     .back-btn:hover { color: #0d9488; }
 
+    /* Activity Feed */
+    .activity-feed {
+      margin-top: 16px; background: #1a1a26; border: 1px solid #2a2a3a;
+      border-radius: 12px; max-height: 150px; overflow-y: auto;
+    }
+    .af-header {
+      padding: 8px 16px; font-size: 12px; color: #5c5c78; text-transform: uppercase;
+      letter-spacing: 0.5px; border-bottom: 1px solid #2a2a3a;
+    }
+    .af-item {
+      padding: 6px 16px; font-size: 13px; color: #8888a0;
+      border-bottom: 1px solid #2a2a3a; animation: slideIn 0.2s ease-out;
+    }
+    .af-item:last-child { border-bottom: none; }
+    .af-item .highlight-text { color: #0d9488; font-weight: 600; }
+    .af-item .hammer-text { color: #f59e0b; font-weight: 600; }
+
+    /* Quick bid buttons */
+    .quick-bids {
+      display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .quick-bids button {
+      padding: 6px 14px; border-radius: 6px; border: 1px solid #2a2a3a;
+      background: #12121a; color: #8888a0; font-size: 13px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .quick-bids button:hover { border-color: #0d9488; color: #0d9488; }
+    .quick-bids button:disabled { opacity: 0.3; cursor: not-allowed; }
+
     @media (max-width: 500px) {
       .container { padding: 16px; }
       .landing h1 { font-size: 32px; }
@@ -266,6 +295,12 @@
     </div>
 
     <!-- Bid Area -->
+    <div class="quick-bids" id="quickBids">
+      <button onclick="quickBid(1.1)">+10%</button>
+      <button onclick="quickBid(1.2)">+20%</button>
+      <button onclick="quickBid(1.5)">+50%</button>
+      <button onclick="quickBid(2)">×2</button>
+    </div>
     <div class="bid-area" id="bidArea">
       <input id="bidInput" type="number" placeholder="输入出价金额" disabled />
       <button id="bidBtn" onclick="placeBid()" disabled>出价</button>
@@ -280,6 +315,14 @@
       </div>
       <div id="lblist">
         <div class="empty-lb">暂无出价，开始竞拍吧！</div>
+      </div>
+    </div>
+
+    <!-- Activity Feed -->
+    <div class="activity-feed" id="activityFeed">
+      <div class="af-header">📋 活动日志</div>
+      <div id="activityList">
+        <div class="af-item">等待竞拍开始...</div>
       </div>
     </div>
   </div>
@@ -371,6 +414,7 @@
           setTimer(msg.timeLeft);
           document.getElementById('bidInput').placeholder = `起拍 ¥${msg.minBid}`;
           document.querySelector('.empty-lb')?.remove();
+          addActivity('start', { minBid: msg.minBid });
           break;
 
         case 'tick':
@@ -380,6 +424,11 @@
         case 'bid':
           setTimer(msg.timeLeft);
           renderLeaderboard(msg.leaderboard, msg.bid);
+          playBidSound();
+          addActivity('bid', msg.bid);
+          // Unlock bid button
+          bidLock = false;
+          document.getElementById('bidBtn').disabled = false;
           break;
 
         case 'bid_error':
@@ -392,6 +441,8 @@
           if (msg.winner) {
             showHammer(msg.winner, msg.totalBids);
             renderLeaderboard(msg.history, null);
+            playHammerSound();
+            addActivity('hammer', { winner: msg.winner.username, amount: msg.winner.amount });
           } else {
             showToast('⏰ 流拍，无人出价');
           }
@@ -501,6 +552,85 @@
       if (room.winner) {
         showHammer(room.winner, room.bids.length);
       }
+    }
+
+    // ============ Sound Effects (Web Audio) ============
+    function playBidSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+      } catch(e) {}
+    }
+
+    function playHammerSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Low thud
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(200, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(); osc.stop(ctx.currentTime + 0.4);
+        // Second hit
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.connect(gain2); gain2.connect(ctx.destination);
+        osc2.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
+        osc2.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.45);
+        gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+        osc2.start(ctx.currentTime + 0.15); osc2.stop(ctx.currentTime + 0.55);
+      } catch(e) {}
+    }
+
+    // ============ Activity Log ============
+    function addActivity(type, data) {
+      const list = document.getElementById('activityList');
+      const first = list.querySelector('.af-item:first-child');
+      if (first && first.textContent === '等待竞拍开始...') first.remove();
+
+      let html = '';
+      if (type === 'bid') {
+        html = `<div class="af-item">💎 <span class="highlight-text">${data.username}</span> 出价 <span class="highlight-text">¥${data.amount.toLocaleString()}</span></div>`;
+      } else if (type === 'start') {
+        html = `<div class="af-item">🔥 竞拍开始！起拍价 ¥${data.minBid}</div>`;
+      } else if (type === 'hammer') {
+        html = `<div class="af-item">🔨 <span class="hammer-text">成交！${data.winner} ¥${data.amount.toLocaleString()}</span></div>`;
+      } else if (type === 'join') {
+        html = `<div class="af-item">👋 ${data} 加入了房间</div>`;
+      }
+
+      if (html) {
+        list.insertAdjacentHTML('afterbegin', html);
+        // Keep max 50 items
+        while (list.children.length > 50) list.lastChild.remove();
+      }
+    }
+
+    // ============ Quick Bid ============
+    function quickBid(multiplier) {
+      const input = document.getElementById('bidInput');
+      const sorted = [...document.querySelectorAll('.lb-row .amount')];
+      if (sorted.length === 0) {
+        const roomData = currentRoom;
+        input.value = Math.ceil((roomData?.minBid || 100) * multiplier);
+      } else {
+        const currentHighest = parseFloat(sorted[0].textContent.replace(/[^0-9.]/g, '')) || 0;
+        input.value = Math.ceil(currentHighest * multiplier);
+      }
+      placeBid();
     }
 
     // ============ Bidding ============

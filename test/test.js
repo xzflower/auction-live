@@ -90,8 +90,36 @@ async function runTests() {
   const tickMsg = msgs1.find(m => m.type === 'tick');
   assert(tickMsg && typeof tickMsg.timeLeft === 'number', '倒计时信号正常');
 
-  // Cleanup
+  // Close room 1 and test room 2 (concurrent)
   c1.close(); c2.close(); c3.close();
+  await wait(300);
+
+  // Test 10: Concurrent bids in a new room
+  const d1 = new WebSocket('ws://localhost:3000');
+  const d2 = new WebSocket('ws://localhost:3000');
+  await wait(300);
+
+  const msgsD1 = [], msgsD2 = [];
+  d1.on('message', d => msgsD1.push(JSON.parse(d.toString())));
+  d2.on('message', d => msgsD2.push(JSON.parse(d.toString())));
+
+  d1.send(JSON.stringify({ type: 'create_room', item: '并发测试', minBid: 50 }));
+  await wait(300);
+  const roomId2 = msgsD1.find(m => m.type === 'room_created')?.roomId;
+
+  d1.send(JSON.stringify({ type: 'join_room', roomId: roomId2, username: '速手A' }));
+  d2.send(JSON.stringify({ type: 'join_room', roomId: roomId2, username: '速手B' }));
+  await wait(600);
+
+  // Both send bids nearly simultaneously
+  d1.send(JSON.stringify({ type: 'bid', amount: 500 }));
+  d2.send(JSON.stringify({ type: 'bid', amount: 600 }));
+  await wait(500);
+
+  const allBids = [...msgsD1, ...msgsD2].filter(m => m.type === 'bid' && m.leaderboard);
+  assert(allBids.length >= 1, '并发出价不崩溃');
+
+  d1.close(); d2.close();
   server.kill();
 
   console.log(`\n📊 结果: ${passed} 通过, ${failed} 失败\n`);
@@ -102,7 +130,7 @@ setTimeout(() => {
   console.log('⏰ 测试超时');
   server.kill();
   process.exit(1);
-}, 15000);
+}, 20000);
 
 server.stderr.on('data', d => {
   const s = d.toString();
