@@ -1,10 +1,12 @@
 {
   "name": "auction-live",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "实时直播竞拍系统",
-  "main": "server.js",
+  "main": "server/index.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "build-frontend": "cd frontend && npm run build",
     "test": "node test/test.js"
   },
   "dependencies": {

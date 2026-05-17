@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const http = require('http');
 
 // Start server
-const server = require('child_process').spawn('node', ['server.js'], {
+const server = require('child_process').spawn('node', ['server/index.js'], {
   cwd: '/tmp/auction-live',
   stdio: 'pipe',
 });

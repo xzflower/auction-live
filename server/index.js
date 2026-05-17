@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 // ============ State ============
-const rooms = new Map(); // roomId -> { id, item, minBid, status, timer, bids[], winner }
-const sockets = new Map(); // ws -> { roomId, username }
+const rooms = new Map();
+const sockets = new Map();
 
 const INITIAL_TIME = 30;
 const BID_EXTEND = 10;
@@ -15,7 +15,7 @@ function createRoom(id, item, minBid) {
     id,
     item,
     minBid: parseFloat(minBid) || 0,
-    status: 'waiting', // waiting | active | ended
+    status: 'waiting',
     bids: [],
     winner: null,
     timer: null,
@@ -85,12 +85,10 @@ function processBid(roomId, username, amount) {
   const bid = { username, amount: bidVal, timestamp: Date.now() };
   room.bids.push(bid);
 
-  // Reset timer
   if (room.timer) clearInterval(room.timer);
   room.timeLeft = BID_EXTEND;
   startTimer(roomId);
 
-  // Build leaderboard
   const sorted = [...room.bids].sort((a, b) => b.amount - a.amount);
   broadcast(roomId, {
     type: 'bid',
@@ -102,29 +100,78 @@ function processBid(roomId, username, amount) {
   return { ok: true };
 }
 
-// ============ HTTP Server ============
-const server = http.createServer((req, res) => {
-  let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
+// ============ CORS Helper ============
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': 'http://localhost:5173',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function jsonResponse(res, data, status = 200) {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+  res.end(JSON.stringify(data));
+}
+
+// ============ Static File Serving ============
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function serveStatic(req, res, rootDir) {
+  let filePath = path.join(rootDir, req.url === '/' ? 'index.html' : req.url);
   const ext = path.extname(filePath);
-  const mime = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml',
-  };
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404);
+      res.writeHead(404, CORS_HEADERS);
       res.end('Not found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
+    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'text/plain', ...CORS_HEADERS });
     res.end(data);
   });
+}
+
+// ============ HTTP Server ============
+const server = http.createServer((req, res) => {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS_HEADERS);
+    res.end();
+    return;
+  }
+
+  if (req.url === '/' && !req.headers.accept?.includes('text/html')) {
+    jsonResponse(res, { status: 'ok', name: 'auction-live', version: '2.0.0', ws: true });
+    return;
+  }
+
+  if (req.url === '/api/status') {
+    jsonResponse(res, { status: 'ok', name: 'auction-live', version: '2.0.0', ws: true, rooms: rooms.size });
+    return;
+  }
+
+  const frontendDist = path.resolve(__dirname, '..', 'frontend', 'dist');
+  if (fs.existsSync(frontendDist)) {
+    serveStatic(req, res, frontendDist);
+    return;
+  }
+
+  const legacyPublic = path.resolve(__dirname, '..', 'public');
+  if (fs.existsSync(path.join(legacyPublic, 'index.html'))) {
+    serveStatic(req, res, legacyPublic);
+    return;
+  }
+
+  jsonResponse(res, { status: 'ok', name: 'auction-live', version: '2.0.0', ws: true });
 });
 
 // ============ WebSocket Server ============
@@ -163,7 +210,6 @@ wss.on('connection', (ws) => {
             winner: room.winner,
           },
         }));
-        // Auto-start if first person joins
         if (room.status === 'waiting' && room.bids.length === 0) {
           room.status = 'active';
           room.timeLeft = INITIAL_TIME;
@@ -196,7 +242,6 @@ wss.on('connection', (ws) => {
         if (!info2) return;
         const room = rooms.get(info2.roomId);
         if (!room) return;
-        // Reset
         if (room.timer) clearInterval(room.timer);
         room.status = 'active';
         room.bids = [];
