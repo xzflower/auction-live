@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 直播竞拍</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #e8e8ed;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+    .hidden { display: none !important; }
+
+    /* Landing */
+    .landing {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; gap: 32px;
+    }
+    .landing h1 { font-size: 48px; background: linear-gradient(135deg, #0d9488, #059669); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .landing p { color: #8888a0; font-size: 16px; }
+
+    .card {
+      background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 16px;
+      padding: 32px; width: 100%; max-width: 400px;
+    }
+    .card h2 { margin-bottom: 20px; font-size: 20px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: #8888a0; margin-bottom: 6px; }
+    .form-group input {
+      width: 100%; padding: 12px 16px; border-radius: 8px;
+      border: 1px solid #2a2a3a; background: #12121a; color: #e8e8ed;
+      font-size: 15px; outline: none; transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: #0d9488; }
+    .form-group input::placeholder { color: #5c5c78; }
+
+    .btn {
+      width: 100%; padding: 12px; border-radius: 8px; border: none;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      background: linear-gradient(135deg, #0d9488, #059669);
+      color: white; transition: all 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(13,148,136,0.3); }
+    .btn-outline {
+      background: transparent; border: 1px solid #2a2a3a; color: #e8e8ed;
+    }
+    .btn-outline:hover { border-color: #0d9488; color: #0d9488; transform: none; box-shadow: none; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .divider { display: flex; align-items: center; gap: 16px; margin: 20px 0; color: #5c5c78; font-size: 13px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #2a2a3a; }
+
+    /* Auction Room */
+    .room-header {
+      text-align: center; margin-bottom: 24px;
+    }
+    .room-header h2 { font-size: 28px; margin-bottom: 4px; }
+    .room-header .item-name { color: #0d9488; font-size: 16px; }
+    .room-header .room-id { color: #5c5c78; font-size: 13px; margin-top: 4px; }
+    .room-header .user-badge {
+      display: inline-block; margin-top: 8px;
+      background: rgba(13,148,136,0.15); color: #0d9488;
+      padding: 4px 12px; border-radius: 50px; font-size: 13px;
+    }
+
+    /* Timer */
+    .timer-section {
+      display: flex; align-items: center; justify-content: center;
+      margin: 24px 0; gap: 20px;
+    }
+    .timer-ring {
+      position: relative; width: 120px; height: 120px;
+    }
+    .timer-ring svg { transform: rotate(-90deg); }
+    .timer-ring .bg { fill: none; stroke: #2a2a3a; stroke-width: 6; }
+    .timer-ring .progress {
+      fill: none; stroke: #0d9488; stroke-width: 6; stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.3s;
+    }
+    .timer-ring .progress.warning { stroke: #f59e0b; }
+    .timer-ring .progress.danger { stroke: #ef4444; }
+    .timer-text {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 36px; font-weight: 700;
+    }
+    .timer-text.warning { color: #f59e0b; }
+    .timer-text.danger { color: #ef4444; }
+
+    .timer-info { text-align: center; }
+
+    /* Bid Area */
+    .bid-area {
+      display: flex; gap: 12px; margin-bottom: 24px;
+    }
+    .bid-area input { flex: 1; padding: 12px 16px; border-radius: 8px;
+      border: 1px solid #2a2a3a; background: #12121a; color: #e8e8ed;
+      font-size: 18px; font-weight: 600; outline: none; }
+    .bid-area input:focus { border-color: #0d9488; }
+    .bid-area button {
+      padding: 12px 28px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, #0d9488, #059669);
+      color: white; font-weight: 600; font-size: 16px; cursor: pointer;
+      white-space: nowrap; transition: all 0.2s;
+    }
+    .bid-area button:hover { box-shadow: 0 4px 20px rgba(13,148,136,0.3); }
+    .bid-area button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Leaderboard */
+    .leaderboard { background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; }
+    .lb-header {
+      display: flex; justify-content: space-between; padding: 12px 16px;
+      background: #12121a; border-bottom: 1px solid #2a2a3a;
+      font-size: 12px; color: #5c5c78; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .lb-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 16px; border-bottom: 1px solid #2a2a3a;
+      transition: all 0.3s; animation: slideIn 0.3s ease-out;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row.highlight {
+      background: rgba(13,148,136,0.12);
+    }
+    .lb-row .rank { width: 30px; font-weight: 700; color: #5c5c78; }
+    .lb-row .rank.gold { color: #f59e0b; }
+    .lb-row .rank.silver { color: #94a3b8; }
+    .lb-row .rank.bronze { color: #d97706; }
+    .lb-row .name { flex: 1; font-size: 15px; }
+    .lb-row .amount {
+      font-size: 16px; font-weight: 700; color: #0d9488;
+    }
+    .lb-row .time {
+      font-size: 11px; color: #5c5c78; margin-left: 12px;
+    }
+    .empty-lb {
+      text-align: center; padding: 40px; color: #5c5c78;
+    }
+
+    /* Hammer */
+    .hammer-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; animation: fadeIn 0.5s ease-out;
+    }
+    .hammer-card {
+      background: #1a1a26; border: 1px solid #2a2a3a;
+      border-radius: 20px; padding: 48px; text-align: center;
+      max-width: 400px; width: 90%;
+    }
+    .hammer-icon { font-size: 64px; margin-bottom: 16px; }
+    .hammer-card h2 { font-size: 24px; margin-bottom: 8px; }
+    .hammer-card .winner-name { font-size: 28px; font-weight: 700; color: #0d9488; margin: 8px 0; }
+    .hammer-card .winner-amount { font-size: 36px; font-weight: 800; color: #f59e0b; margin: 8px 0; }
+    .hammer-card .total { color: #8888a0; font-size: 14px; margin: 16px 0; }
+    .hammer-card .btn { margin-top: 16px; }
+
+    /* Bid error toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #ef4444; color: white; padding: 12px 24px;
+      border-radius: 8px; font-size: 14px; z-index: 200;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 50px;
+      font-size: 12px; font-weight: 600; margin-top: 8px;
+    }
+    .status-waiting { background: rgba(251,191,36,0.1); color: #fbbf24; }
+    .status-active { background: rgba(13,148,136,0.1); color: #0d9488; }
+    .status-ended { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+    /* Animations */
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes hammerDrop {
+      0% { transform: scale(0) rotate(-20deg); }
+      60% { transform: scale(1.1) rotate(5deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .hammer-icon { animation: hammerDrop 0.8s ease-out; }
+
+    /* back btn */
+    .back-btn {
+      background: none; border: none; color: #5c5c78; cursor: pointer;
+      font-size: 14px; padding: 8px 0; margin-bottom: 16px;
+    }
+    .back-btn:hover { color: #0d9488; }
+
+    @media (max-width: 500px) {
+      .container { padding: 16px; }
+      .landing h1 { font-size: 32px; }
+      .timer-ring { width: 90px; height: 90px; }
+      .timer-text { font-size: 28px; }
+      .bid-area { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ========== Landing Page ========== -->
+  <div id="landingPage" class="landing">
+    <h1>🎯 直播竞拍</h1>
+    <p>毫秒级实时出价 · 动态排名 · 落锤成交</p>
+
+    <div class="card">
+      <h2>创建拍卖</h2>
+      <div class="form-group">
+        <label>拍品名称</label>
+        <input id="newItem" placeholder="例如：限量版手办" />
+      </div>
+      <div class="form-group">
+        <label>起拍价 (¥)</label>
+        <input id="newMinBid" type="number" placeholder="100" value="100" />
+      </div>
+      <button class="btn" onclick="createRoom()">创建房间</button>
+
+      <div class="divider">或者</div>
+
+      <h2>加入房间</h2>
+      <div class="form-group">
+        <label>房间号</label>
+        <input id="joinRoomId" placeholder="输入6位房间号" />
+      </div>
+      <div class="form-group">
+        <label>你的昵称</label>
+        <input id="joinUsername" placeholder="输入昵称" />
+      </div>
+      <button class="btn" onclick="joinRoom()">加入房间</button>
+    </div>
+  </div>
+
+  <!-- ========== Auction Room ========== -->
+  <div id="roomPage" class="container hidden">
+    <button class="back-btn" onclick="leaveRoom()">← 返回大厅</button>
+
+    <div class="room-header">
+      <div class="item-name" id="roomItem">-</div>
+      <div class="room-id" id="roomId">房间号: ---</div>
+      <div class="user-badge" id="roomUser">-</div>
+      <div><span class="status-badge" id="roomStatus">等待中</span></div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer-section">
+      <div class="timer-ring">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle class="bg" cx="60" cy="60" r="54" />
+          <circle class="progress" id="timerProgress" cx="60" cy="60" r="54"
+            stroke-dasharray="339.292" stroke-dashoffset="0" />
+        </svg>
+        <div class="timer-text" id="timerText">30</div>
+      </div>
+    </div>
+
+    <!-- Bid Area -->
+    <div class="bid-area" id="bidArea">
+      <input id="bidInput" type="number" placeholder="输入出价金额" disabled />
+      <button id="bidBtn" onclick="placeBid()" disabled>出价</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="leaderboard">
+      <div class="lb-header">
+        <span>排名</span>
+        <span>用户</span>
+        <span>出价</span>
+      </div>
+      <div id="lblist">
+        <div class="empty-lb">暂无出价，开始竞拍吧！</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============ State ============
+    let ws = null;
+    let currentRoom = null;
+    let currentUser = null;
+    let timerInterval = null;
+    const CIRCUMFERENCE = 339.292;
+    let bidLock = false;
+
+    // ============ Landing ============
+    function createRoom() {
+      const item = document.getElementById('newItem').value.trim();
+      const minBid = parseFloat(document.getElementById('newMinBid').value) || 0;
+      if (!item) return alert('请输入拍品名称');
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) connectWS();
+      waitConnect(() => {
+        ws.send(JSON.stringify({ type: 'create_room', item, minBid }));
+      });
+    }
+
+    function joinRoom() {
+      const roomId = document.getElementById('joinRoomId').value.trim().toUpperCase();
+      const username = document.getElementById('joinUsername').value.trim();
+      if (!roomId) return alert('请输入房间号');
+      if (!username) return alert('请输入昵称');
+
+      currentUser = username;
+      if (!ws || ws.readyState !== WebSocket.OPEN) connectWS();
+      waitConnect(() => {
+        ws.send(JSON.stringify({ type: 'join_room', roomId, username }));
+      });
+    }
+
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}`);
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        if (currentRoom) {
+          showToast('连接断开，请刷新页面');
+        }
+      };
+    }
+
+    function waitConnect(fn) {
+      if (ws && ws.readyState === WebSocket.OPEN) { fn(); return; }
+      if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+      const check = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          clearInterval(check);
+          fn();
+        }
+      }, 100);
+    }
+
+    // ============ Messages ============
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'room_created':
+          document.getElementById('joinRoomId').value = msg.roomId;
+          showToast(`房间 ${msg.roomId} 已创建！`);
+          break;
+
+        case 'room_joined':
+          currentRoom = msg.room;
+          enterRoom();
+          if (msg.room.status === 'active') {
+            renderState(msg.room);
+          } else if (msg.room.status === 'ended') {
+            renderEnded(msg.room);
+          }
+          break;
+
+        case 'start':
+          currentRoom = currentRoom || {};
+          currentRoom.status = 'active';
+          updateStatus('active');
+          enableBidding(true);
+          setTimer(msg.timeLeft);
+          document.getElementById('bidInput').placeholder = `起拍 ¥${msg.minBid}`;
+          document.querySelector('.empty-lb')?.remove();
+          break;
+
+        case 'tick':
+          setTimer(msg.timeLeft);
+          break;
+
+        case 'bid':
+          setTimer(msg.timeLeft);
+          renderLeaderboard(msg.leaderboard, msg.bid);
+          break;
+
+        case 'bid_error':
+          showToast(msg.reason);
+          bidLock = false;
+          document.getElementById('bidBtn').disabled = false;
+          break;
+
+        case 'hammer':
+          if (msg.winner) {
+            showHammer(msg.winner, msg.totalBids);
+            renderLeaderboard(msg.history, null);
+          } else {
+            showToast('⏰ 流拍，无人出价');
+          }
+          updateStatus('ended');
+          enableBidding(false);
+          break;
+
+        case 'error':
+          showToast(msg.message);
+          break;
+      }
+    }
+
+    // ============ Room UI ============
+    function enterRoom() {
+      document.getElementById('landingPage').classList.add('hidden');
+      document.getElementById('roomPage').classList.remove('hidden');
+      document.getElementById('roomItem').textContent = currentRoom.item || '-';
+      document.getElementById('roomId').textContent = `房间号: ${currentRoom.id}`;
+      document.getElementById('roomUser').textContent = `👤 ${currentUser}`;
+      updateStatus(currentRoom.status);
+    }
+
+    function leaveRoom() {
+      if (timerInterval) clearInterval(timerInterval);
+      if (ws) ws.close();
+      ws = null;
+      currentRoom = null;
+      currentUser = null;
+      document.getElementById('landingPage').classList.remove('hidden');
+      document.getElementById('roomPage').classList.add('hidden');
+    }
+
+    function updateStatus(status) {
+      const el = document.getElementById('roomStatus');
+      el.className = 'status-badge';
+      if (status === 'waiting') { el.textContent = '⏳ 等待中'; el.classList.add('status-waiting'); }
+      else if (status === 'active') { el.textContent = '🔥 竞拍中'; el.classList.add('status-active'); }
+      else { el.textContent = '🔨 已成交'; el.classList.add('status-ended'); }
+    }
+
+    function enableBidding(enabled) {
+      document.getElementById('bidInput').disabled = !enabled;
+      document.getElementById('bidBtn').disabled = !enabled;
+    }
+
+    function setTimer(seconds) {
+      const el = document.getElementById('timerText');
+      const prog = document.getElementById('timerProgress');
+      const clamped = Math.max(0, seconds);
+
+      el.textContent = clamped;
+
+      // Color
+      el.classList.remove('warning', 'danger');
+      prog.classList.remove('warning', 'danger');
+      if (clamped <= 5) { el.classList.add('danger'); prog.classList.add('danger'); }
+      else if (clamped <= 10) { el.classList.add('warning'); prog.classList.add('warning'); }
+
+      // Ring
+      const maxTime = 30;
+      const offset = CIRCUMFERENCE - (clamped / maxTime) * CIRCUMFERENCE;
+      prog.style.strokeDashoffset = offset;
+    }
+
+    function renderLeaderboard(bids, latestBid) {
+      const list = document.getElementById('lblist');
+      const sorted = [...bids].sort((a, b) => b.amount - a.amount);
+
+      if (sorted.length === 0) {
+        list.innerHTML = '<div class="empty-lb">暂无出价</div>';
+        return;
+      }
+
+      list.innerHTML = sorted.map((bid, i) => {
+        const isNew = latestBid && bid.username === latestBid.username && bid.amount === latestBid.amount;
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+        const time = new Date(bid.timestamp).toLocaleTimeString();
+        return `<div class="lb-row ${isNew ? 'highlight' : ''}">
+          <span class="rank ${rankClass}">${medal}</span>
+          <span class="name">${bid.username}${isNew ? ' ⚡' : ''}</span>
+          <span class="amount">¥${bid.amount.toLocaleString()}</span>
+          <span class="time">${time}</span>
+        </div>`;
+      }).join('');
+
+      // Scroll to top
+      list.scrollTop = 0;
+    }
+
+    function renderState(room) {
+      setTimer(room.timeLeft || 30);
+      updateStatus('active');
+      enableBidding(true);
+      if (room.bids && room.bids.length > 0) {
+        renderLeaderboard(room.bids, null);
+      }
+    }
+
+    function renderEnded(room) {
+      updateStatus('ended');
+      enableBidding(false);
+      if (room.bids && room.bids.length > 0) {
+        renderLeaderboard(room.bids, null);
+      }
+      if (room.winner) {
+        showHammer(room.winner, room.bids.length);
+      }
+    }
+
+    // ============ Bidding ============
+    function placeBid() {
+      if (bidLock) return;
+      const input = document.getElementById('bidInput');
+      const amount = parseFloat(input.value);
+      if (isNaN(amount) || amount <= 0) { showToast('请输入有效金额'); return; }
+
+      bidLock = true;
+      document.getElementById('bidBtn').disabled = true;
+      ws.send(JSON.stringify({ type: 'bid', amount }));
+      input.value = '';
+    }
+
+    // ============ Hammer Animation ============
+    function showHammer(winner, totalBids) {
+      const overlay = document.createElement('div');
+      overlay.className = 'hammer-overlay';
+      overlay.innerHTML = `
+        <div class="hammer-card">
+          <div class="hammer-icon">🔨</div>
+          <h2>🎉 成交！</h2>
+          <div class="winner-name">🏆 ${winner.username}</div>
+          <div class="winner-amount">¥${winner.amount.toLocaleString()}</div>
+          <div class="total">共 ${totalBids} 次出价</div>
+          <button class="btn" onclick="this.closest('.hammer-overlay').remove()">关闭</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    // ============ Toast ============
+    function showToast(msg) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // ============ Connect on load ============
+    connectWS();
+  </script>
+</body>
+</html>
